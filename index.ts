@@ -8,7 +8,7 @@ const client = new Client({ partials: ['MESSAGE', 'CHANNEL', 'REACTION'] });
 client.login(process.env.DISCORD_TOKEN);
 
 const octokit = new Octokit({
-    auth: process.env.GITHUB_TOKEN!
+    auth: `${process.env.GITHUB_TOKEN}`
 });
 
 const formUsers = new Set<string>();
@@ -23,13 +23,12 @@ client.on('messageReactionAdd', async (reaction, user) => {
     if (reaction.partial) await reaction.fetch();
     if (reaction.message.channel.id !== process.env.DISCORD_REPORT_CHANNEL) return;
     if (reaction.emoji.name !== '🐱') return;
-
-    const member = await reaction.message.guild?.members.fetch(user.id).catch(() => {});
+    const member = await reaction.message.guild?.members.fetch(user.id).catch(() => { });
     if (!member || !member.permissions.has('MANAGE_MESSAGES')) return;
 
     formUsers.add(user.id);
 
-    const confirmationMessage = await reaction.message.channel.send(`${user.toString()}, voulez-vous vraiment convertir ce message en issue sur GitHub ? Si oui, entrez le nom que vous souhaitez attribuer à l'issue. Pour annuler, envoyez simplement \`non\`!`);
+    const confirmationMessage = await reaction.message.channel.send(`${user.toString()}, ¿Estás seguro de que deseas convertir esta publicación en un problema en GitHub? Si es así, ingrese el nombre que desea asignar al resultado. Para cancelar, simplemente envíe \`no\`!`);
 
     const collector = reaction.message.channel.createMessageCollector((message) => message.author.id === user.id, {
         time: 60000
@@ -41,25 +40,32 @@ client.on('messageReactionAdd', async (reaction, user) => {
         message.delete();
         collector.stop();
 
-        if (message.content === 'non') {
+        if (message.content === 'no') {
             reaction.users.remove(user.id);
-            message.reply('action annulée ✅').then((m: Message) => {
+            message.reply('accion anulada ✅').then((m: Message) => {
                 setTimeout(() => m.delete(), 10000);
             });
         } else {
             reaction.message.reactions.removeAll();
             const imageAttachments = reaction.message.attachments.filter((att) => ['jpg', 'png', 'webp', 'gif'].some((ext) => att.url.endsWith(`.${ext}`)));
-            octokit.issues.create({
-                owner: process.env.GITHUB_REPO_OWNER!,
-                repo: process.env.GITHUB_REPO_NAME!,
-                body: `🤖 Cette issue a été ouverte depuis un message sur Discord ${reaction.message.url}\n\n${reaction.message.content}${imageAttachments.size > 0 ? `\n\n${imageAttachments.map((att) => `![${att.name}](${att.url})`)}` : ''}`,
+            console.log(process.env.GITHUB_REPO_OWNER);
+            console.log(process.env.GITHUB_REPO_NAME);
+            octokit.repos.get({
+                owner: `${process.env.GITHUB_REPO_OWNER}`,
+                repo: `${process.env.GITHUB_REPO_NAME}`
+            }).then((repo) => console.log(repo)).catch(err => console.error(err))
+
+            octokit.request("POST /repos/{owner}/{repo}/issues", {
+                owner: `${process.env.GITHUB_REPO_OWNER}`,
+                repo: `${process.env.GITHUB_REPO_NAME}`,
+                body: `🤖 Este problema se abrió a partir de un mensaje en Discord. ${reaction.message.url}\n\n${reaction.message.content}${imageAttachments.size > 0 ? `\n\n${imageAttachments.map((att) => `![${att.name}](${att.url})`)}` : ''}`,
                 title: message.content,
                 labels: ['bug']
             }).then((issue) => {
-                message.reply(`issue créée https://github.com/${process.env.GITHUB_REPO_OWNER}/${process.env.GITHUB_REPO_NAME}/issues/${issue.data.number} ✅`).then((m: Message) => {
+                message.reply(`issue creada https://github.com/${process.env.GITHUB_REPO_OWNER}/${process.env.GITHUB_REPO_NAME}/issues/${issue.data.number} ✅`).then((m: Message) => {
                     setTimeout(() => m.delete(), 10000);
                 });
-            });
+            }).catch(err => console.error(err));
         }
     });
 
@@ -68,7 +74,7 @@ client.on('messageReactionAdd', async (reaction, user) => {
         if (reason === 'time') {
             confirmationMessage.delete();
             reaction.users.remove(user.id);
-            reaction.message.channel.send(`${user.toString()}, action annulée ⏲️`).then((m: Message) => {
+            reaction.message.channel.send(`${user.toString()}, accion anulada ⏲️`).then((m: Message) => {
                 setTimeout(() => m.delete(), 10000);
             });
         }
@@ -80,7 +86,7 @@ client.on('message', (message) => {
 
     if (message.channel.id !== process.env.DISCORD_REPORT_CHANNEL) return;
     if (message.author.bot) return;
-    
+
     const isReplying = formUsers.has(message.author.id);
     if (isReplying) return;
 

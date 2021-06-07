@@ -18,13 +18,12 @@ client.on('ready', () => {
 });
 
 client.on('messageReactionAdd', async (reaction, user) => {
-
     if (user.bot) return;
     if (reaction.partial) await reaction.fetch();
     if (reaction.message.channel.id !== process.env.DISCORD_REPORT_CHANNEL) return;
     if (reaction.emoji.name !== '🐱') return;
     const member = await reaction.message.guild?.members.fetch(user.id).catch(() => { });
-    if (!member || !member.permissions.has('MANAGE_MESSAGES')) return;
+    // if (!member || !member.permissions.has('MANAGE_MESSAGES')) return;
 
     formUsers.add(user.id);
 
@@ -48,12 +47,6 @@ client.on('messageReactionAdd', async (reaction, user) => {
         } else {
             reaction.message.reactions.removeAll();
             const imageAttachments = reaction.message.attachments.filter((att) => ['jpg', 'png', 'webp', 'gif'].some((ext) => att.url.endsWith(`.${ext}`)));
-            console.log(process.env.GITHUB_REPO_OWNER);
-            console.log(process.env.GITHUB_REPO_NAME);
-            octokit.repos.get({
-                owner: `${process.env.GITHUB_REPO_OWNER}`,
-                repo: `${process.env.GITHUB_REPO_NAME}`
-            }).then((repo) => console.log(repo)).catch(err => console.error(err))
 
             octokit.request("POST /repos/{owner}/{repo}/issues", {
                 owner: `${process.env.GITHUB_REPO_OWNER}`,
@@ -83,7 +76,6 @@ client.on('messageReactionAdd', async (reaction, user) => {
 });
 
 client.on('message', (message) => {
-
     if (message.channel.id !== process.env.DISCORD_REPORT_CHANNEL) return;
     if (message.author.bot) return;
 
